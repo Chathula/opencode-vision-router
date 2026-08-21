@@ -215,6 +215,11 @@ when a **GitHub Release is published**.
 
 > Requires a `NPM_TOKEN` secret in the repo settings (an npm automation/publish token).
 
+> ⚠️ **Version slots are permanent.** Once a `package@version` is published — even briefly, and
+> even if later unpublished — npm forbids reusing that version number forever. Never publish throwaway
+> test versions. PRs run a `npm publish --dry-run` guard (`.github/workflows/ci.yml`) that validates
+> packaging **without** consuming a version.
+
 ## 📜 License
 
 [MIT](./LICENSE) © opencode-vision-router contributors.
