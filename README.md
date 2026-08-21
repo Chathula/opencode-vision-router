@@ -20,7 +20,7 @@
 ---
 
 opencode attaches a pasted image to the **main (text-only) model's** message and drops or errors
-on it *before* any skill or subagent runs. A skill alone cannot fix this. The only reliable fix is a
+on it _before_ any skill or subagent runs. A skill alone cannot fix this. The only reliable fix is a
 **plugin hook** that intercepts the image at the harness level, resolves it to a readable path, and
 lets a cheap vision model analyze it.
 
@@ -74,11 +74,11 @@ Then **restart opencode** — plugins are not hot-reloaded.
 
 ## ⚙️ Configuration
 
-| Option   | Required | Default         | Description                                                                              |
-| -------- | -------- | --------------- | ---------------------------------------------------------------------------------------- |
-| `model`  | yes      | —               | Vision-capable model as `provider/model` (e.g. `opencode-go/qwen3.7-plus`). If omitted, routing is disabled (a warning is logged). |
-| `agent`  | no       | `vision`        | Name of the injected vision subagent.                                                    |
-| `tmpDir` | no       | `os.tmpdir()`   | Directory under which decoded images are cached (content-hashed, reused across calls).    |
+| Option   | Required | Default       | Description                                                                                                                        |
+| -------- | -------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `model`  | yes      | —             | Vision-capable model as `provider/model` (e.g. `opencode-go/qwen3.7-plus`). If omitted, routing is disabled (a warning is logged). |
+| `agent`  | no       | `vision`      | Name of the injected vision subagent.                                                                                              |
+| `tmpDir` | no       | `os.tmpdir()` | Directory under which decoded images are cached (content-hashed, reused across calls).                                             |
 
 ## 🚀 Usage examples
 
@@ -108,11 +108,14 @@ Then **restart opencode** — plugins are not hot-reloaded.
 ```json
 {
   "plugin": [
-    ["opencode-vision-router", {
-      "model": "anthropic/claude-3-5-haiku",
-      "agent": "image-reader",
-      "tmpDir": "/var/tmp/opencode-vision"
-    }]
+    [
+      "opencode-vision-router",
+      {
+        "model": "anthropic/claude-3-5-haiku",
+        "agent": "image-reader",
+        "tmpDir": "/var/tmp/opencode-vision"
+      }
+    ]
   ]
 }
 ```
@@ -132,7 +135,7 @@ A pasted image is intercepted and routed to the vision subagent:
 
 <img src="./assets/screenshot-1.png" alt="Pasted image routed to the vision subagent" width="720" />
 
-<img src="./assets/screenshot-2.png" alt="Vision subagent analyzing the image and returning text" width="720" />
+<img src="./assets/screenshot-3.png" alt="Vision subagent analyzing the image and returning text" width="720" />
 
 Request flow:
 
