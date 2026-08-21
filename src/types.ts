@@ -5,6 +5,13 @@ export type Opts = {
   agent?: string;
   /** Directory under which decoded images are cached. Defaults to `os.tmpdir()`. */
   tmpDir?: string;
+  /**
+   * Route images to the vision subagent even when the main model is itself
+   * multimodal. Default: `false` (auto-skip — if the main model can see images,
+   * the subagent is not used, so the main model handles images directly). Set to
+   * `true` to always route, e.g. to offload images to a cheaper vision model.
+   */
+  force?: boolean;
 };
 
 export interface FilePartLike {

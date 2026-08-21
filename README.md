@@ -32,6 +32,7 @@ the vision subagent for you, so there are **no separate agent or skill files** t
 - 🖼️ **Pasted-image routing** — `data:` URLs, `file://` paths, and absolute paths all supported.
 - 📸 **Multiple images** — handles several pasted images in a single message, routing each one to the vision subagent.
 - 💸 **Cheap vision model** — point it at any image-capable model (`provider/model`).
+- 🧠 **Multimodal-aware** — if your main model already sees images, routing is skipped automatically. Set `force` to always route (e.g. to a cheaper vision model).
 - 🧩 **Self-contained** — injects the vision subagent and system instruction at load time.
 - 🔒 **Safe by default** — the vision subagent can read the image but is denied edit/bash/webfetch.
 - ⚡ **No build step** — opencode runs plugins on Bun, which executes TypeScript natively.
@@ -77,9 +78,10 @@ Then **restart opencode** — plugins are not hot-reloaded.
 
 | Option   | Required | Default       | Description                                                                                                                        |
 | -------- | -------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `model`  | yes      | —             | Vision-capable model as `provider/model` (e.g. `opencode-go/qwen3.7-plus`). If omitted, routing is disabled (a warning is logged). |
-| `agent`  | no       | `vision`      | Name of the injected vision subagent.                                                                                              |
-| `tmpDir` | no       | `os.tmpdir()` | Directory under which decoded images are cached (content-hashed, reused across calls).                                             |
+| `model`  | yes      | —               | Vision-capable model as `provider/model` (e.g. `opencode-go/qwen3.7-plus`). If omitted, routing is disabled (a warning is logged). |
+| `agent`  | no       | `vision`        | Name of the injected vision subagent.                                                    |
+| `tmpDir` | no       | `os.tmpdir()`   | Directory under which decoded images are cached (content-hashed, reused across calls).    |
+| `force`  | no       | `false`         | Route images to the vision subagent even when the main model is multimodal (e.g. to use a cheaper vision model). By default the subagent is **skipped** when the main model can already see images. |
 
 ## 🚀 Usage examples
 
@@ -117,6 +119,23 @@ Then **restart opencode** — plugins are not hot-reloaded.
         "tmpDir": "/var/tmp/opencode-vision"
       }
     ]
+  ]
+}
+```
+
+### Force routing on a multimodal main model
+
+If your main model can already see images, routing is skipped by default. Set `force: true`
+to always route — e.g. to send images to a *cheaper* vision model while keeping a stronger
+text model as main:
+
+```json
+{
+  "plugin": [
+    ["opencode-vision-router", {
+      "model": "openai/gpt-4o-mini",
+      "force": true
+    }]
   ]
 }
 ```
