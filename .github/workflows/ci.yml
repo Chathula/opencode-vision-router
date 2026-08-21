@@ -27,5 +27,8 @@ jobs:
       - name: Type-check
         run: bunx tsc --noEmit
 
+      - name: Build to dist/
+        run: bun run build
+
       - name: Validate package (dry run — does NOT publish or consume a version)
         run: npm publish --dry-run --access public

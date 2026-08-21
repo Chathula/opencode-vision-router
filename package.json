@@ -3,9 +3,9 @@
   "version": "0.1.2",
   "description": "Route pasted images to a cheap vision model in opencode so text-only main agents work from its text output.",
   "type": "module",
-  "main": "src/index.ts",
-  "exports": "./src/index.ts",
-  "files": ["src"],
+  "main": "dist/index.js",
+  "exports": "./dist/index.js",
+  "files": ["dist"],
   "keywords": ["opencode", "opencode-plugin", "vision", "multimodal", "subagent"],
   "license": "MIT",
   "repository": {
@@ -16,7 +16,10 @@
   "bugs": {
     "url": "https://github.com/Chathula/opencode-vision-router/issues"
   },
-  "scripts": { "test": "bun test" },
+  "scripts": {
+    "test": "bun test",
+    "build": "bun build src/index.ts --outfile dist/index.js --target=node"
+  },
   "devDependencies": {
     "@opencode-ai/plugin": "^1.18.19",
     "@opencode-ai/sdk": "^1.18.19",
