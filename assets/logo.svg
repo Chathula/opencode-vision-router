@@ -1,0 +1,34 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="opencode-vision-router logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0EA5E9"/>
+      <stop offset="1" stop-color="#6366F1"/>
+    </linearGradient>
+    <linearGradient id="eye" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/>
+
+  <!-- image tile -->
+  <g transform="translate(96 150)">
+    <rect x="0" y="0" width="150" height="120" rx="20" fill="#0F172A" fill-opacity="0.35"/>
+    <circle cx="42" cy="42" r="16" fill="#F8FAFC"/>
+    <path d="M12 108 L58 64 L92 96 L120 70 L138 108 Z" fill="#F8FAFC"/>
+  </g>
+
+  <!-- routing arrow -->
+  <path d="M262 210 C 320 210, 320 300, 372 300" stroke="#F8FAFC" stroke-width="14" stroke-linecap="round" fill="none"/>
+  <path d="M356 286 L378 304 L356 318 Z" fill="#F8FAFC"/>
+
+  <!-- eye / vision model -->
+  <g transform="translate(330 250)">
+    <path d="M0 50 C 40 -10, 130 -10, 170 50 C 130 110, 40 110, 0 50 Z" fill="url(#eye)"/>
+    <circle cx="85" cy="50" r="34" fill="#0F172A" fill-opacity="0.85"/>
+    <circle cx="85" cy="50" r="14" fill="#F8FAFC"/>
+  </g>
+
+  <text x="256" y="430" font-family="'SF Mono', ui-monospace, monospace" font-size="40" font-weight="700" fill="#F8FAFC" text-anchor="middle">vision-router</text>
+</svg>
