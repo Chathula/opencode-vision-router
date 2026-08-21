@@ -145,11 +145,11 @@ describe("plugin multimodal-awareness", () => {
 
   const multimodalModel = {
     id: "m",
-    modalities: { input: ["text", "image"], output: ["text"] },
+    capabilities: { input: { text: true, image: true }, output: { text: true } },
   };
   const textModel = {
     id: "m",
-    modalities: { input: ["text"], output: ["text"] },
+    capabilities: { input: { text: true, image: false }, output: { text: true } },
   };
 
   it("should skip the subagent when the main model is multimodal (default)", async () => {

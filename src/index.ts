@@ -77,7 +77,10 @@ const plugin: Plugin = async (_input, options) => {
     "experimental.chat.system.transform": async (input, output) => {
       if (!hasModel) return;
       // Authoritative, per-message: read the active model's capabilities.
-      const mm = (input as any)?.model?.modalities?.input?.includes("image");
+      // The resolved Model exposes `capabilities.input.image` (boolean); the
+      // `modalities: { input: [...] }` shape only exists on config-time defs.
+      const caps = (input as any)?.model?.capabilities?.input;
+      const mm = caps ? caps.image === true : undefined;
       if (mm === true && !force) {
         routeEnabled = false;
         noteSkip();
