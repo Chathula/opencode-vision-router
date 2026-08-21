@@ -1,6 +1,6 @@
 {
   "name": "opencode-vision-router",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Route pasted images to a cheap vision model in opencode so text-only main agents work from its text output.",
   "type": "module",
   "main": "dist/index.js",
