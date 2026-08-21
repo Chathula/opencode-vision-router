@@ -8,6 +8,14 @@
   "files": ["src"],
   "keywords": ["opencode", "opencode-plugin", "vision", "multimodal", "subagent"],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Chathula/opencode-vision-router.git"
+  },
+  "homepage": "https://github.com/Chathula/opencode-vision-router#readme",
+  "bugs": {
+    "url": "https://github.com/Chathula/opencode-vision-router/issues"
+  },
   "scripts": { "test": "bun test" },
   "devDependencies": {
     "@opencode-ai/plugin": "^1.18.19",
