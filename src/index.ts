@@ -42,22 +42,12 @@ const plugin: Plugin = async (_input, options) => {
   // Refined per-message (see experimental.chat.system.transform), but seeded
   // here from the config so the very first message is correct when detectable.
   let routeEnabled = hasModel;
-  let skipLogged = false;
 
   if (!hasModel) {
     console.warn(
       "[opencode-vision-router] no `model` option set; vision routing disabled.",
     );
   }
-
-  const noteSkip = () => {
-    if (skipLogged) return;
-    skipLogged = true;
-    console.log(
-      "[opencode-vision-router] main model is multimodal; skipping vision " +
-        "subagent. Set `force: true` to route images to a (cheaper) vision model anyway.",
-    );
-  };
 
   return {
     // Inject the vision subagent + declare the model image-capable at load time.
@@ -66,7 +56,6 @@ const plugin: Plugin = async (_input, options) => {
       const mm = mainModelIsMultimodal(cfg);
       if (mm === true && !force) {
         routeEnabled = false;
-        noteSkip();
       } else if (mm === false) {
         routeEnabled = true;
       }
@@ -83,7 +72,6 @@ const plugin: Plugin = async (_input, options) => {
       const mm = caps ? caps.image === true : undefined;
       if (mm === true && !force) {
         routeEnabled = false;
-        noteSkip();
       } else if (mm === false || force) {
         routeEnabled = true;
       }
