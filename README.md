@@ -128,8 +128,11 @@ package.
 
 ## 🖥️ Screenshots
 
-<!-- Replace assets/screenshot.png with a real capture of a pasted image being routed. -->
-<!-- <img src="./assets/screenshot.png" alt="pasted image routed to vision subagent" width="720" /> -->
+A pasted image is intercepted and routed to the vision subagent:
+
+<img src="./assets/screenshot-1.png" alt="Pasted image routed to the vision subagent" width="720" />
+
+<img src="./assets/screenshot-2.png" alt="Vision subagent analyzing the image and returning text" width="720" />
 
 Request flow:
 
