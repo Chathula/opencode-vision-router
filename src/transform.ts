@@ -13,9 +13,9 @@ export function imagePointer(path: string, agentName: string): string {
   );
 }
 
-function isImagePart(part: any): part is FilePartLike {
-  return part?.type === "file" && typeof part.mime === "string" && part.mime.startsWith("image/");
-}
+ export function isImagePart(part: any): part is FilePartLike {
+   return part?.type === "file" && typeof part.mime === "string" && part.mime.startsWith("image/");
+ }
 
 /**
  * Pure transform: replace image file parts on **user** messages with a text pointer

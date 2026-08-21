@@ -134,76 +134,76 @@ describe("agent config injection", () => {
   });
 });
 
-describe("plugin multimodal-awareness", () => {
-  const imgMsg = () => ({
-    info: { role: "user" },
-    parts: [
-      { type: "text", text: "what is this?" },
-      { type: "file", mime: "image/png", url: "data:image/png;base64,AAAA" },
-    ],
-  });
+describe("plugin routing per model capability", () => {
+  const imgParts = () => [
+    { type: "text", text: "what is this?" },
+    { type: "file", mime: "image/png", url: "data:image/png;base64,AAAA" },
+  ];
 
-  const multimodalModel = {
-    id: "m",
-    capabilities: { input: { text: true, image: true }, output: { text: true } },
-  };
-  const textModel = {
-    id: "m",
-    capabilities: { input: { text: true, image: false }, output: { text: true } },
+  // Simulate one user turn: learn capability via chat.params, then rewrite via chat.message.
+  const turn = async (
+    hooks: any,
+    modelID: string,
+    capsImage: boolean,
+  ) => {
+    await hooks["chat.params"]({
+      model: {
+        id: modelID,
+        capabilities: { input: { text: true, image: capsImage }, output: { text: true } },
+      },
+    });
+    const out: any = { parts: imgParts() };
+    await hooks["chat.message"]({ model: { modelID }, agent: "main" }, out);
+    return out;
   };
 
   it("should skip the subagent when the main model is multimodal (default)", async () => {
     const hooks = (await plugin({} as any, { model: "p/v" })) as any;
-    const sysOut: any = { system: [] };
-    await hooks["experimental.chat.system.transform"](
-      { model: multimodalModel } as any,
-      sysOut,
-    );
-    expect(sysOut.system.length).toBe(0); // no delegation instruction
-    const msgOut: any = { messages: [imgMsg()] };
-    await hooks["experimental.chat.messages.transform"]({}, msgOut);
-    expect(
-      msgOut.messages[0].parts.some((p: any) => p.type === "file"),
-    ).toBe(true); // image left intact
+    const out = await turn(hooks, "m", true);
+    expect(out.parts.some((p: any) => p.type === "file")).toBe(true); // image intact
   });
 
   it("should route when the main model is text-only", async () => {
     const hooks = (await plugin({} as any, { model: "p/v" })) as any;
-    const sysOut: any = { system: [] };
-    await hooks["experimental.chat.system.transform"](
-      { model: textModel } as any,
-      sysOut,
-    );
-    expect(sysOut.system.length).toBe(1); // delegation instruction pushed
-    const msgOut: any = { messages: [imgMsg()] };
-    await hooks["experimental.chat.messages.transform"]({}, msgOut);
+    const out = await turn(hooks, "m", false);
+    expect(out.parts.some((p: any) => p.type === "file")).toBe(false); // stripped
     expect(
-      msgOut.messages[0].parts.some((p: any) => p.type === "file"),
-    ).toBe(false); // image stripped
+      out.parts.some(
+        (p: any) => p.type === "text" && p.text.includes("[The user attached an image"),
+      ),
+    ).toBe(true); // pointer added
   });
 
   it("should route even on a multimodal main model when force is true", async () => {
     const hooks = (await plugin({} as any, { model: "p/v", force: true })) as any;
-    const sysOut: any = { system: [] };
-    await hooks["experimental.chat.system.transform"](
-      { model: multimodalModel } as any,
-      sysOut,
-    );
-    expect(sysOut.system.length).toBe(1);
-    const out: any = { messages: [imgMsg()] };
-    await hooks["experimental.chat.messages.transform"]({}, out);
-    expect(out.messages[0].parts.some((p: any) => p.type === "file")).toBe(
-      false,
-    );
+    const out = await turn(hooks, "m", true);
+    expect(out.parts.some((p: any) => p.type === "file")).toBe(false); // stripped
+  });
+
+  it("should switch routing when the model changes mid-session", async () => {
+    const hooks = (await plugin({} as any, { model: "p/v" })) as any;
+    let out = await turn(hooks, "multi", true);
+    expect(out.parts.some((p: any) => p.type === "file")).toBe(true); // multimodal: skip
+    out = await turn(hooks, "text", false);
+    expect(out.parts.some((p: any) => p.type === "file")).toBe(false); // text-only: route
+    out = await turn(hooks, "multi", true);
+    expect(out.parts.some((p: any) => p.type === "file")).toBe(true); // back to multimodal: skip
   });
 
   it("should disable routing entirely without a model", async () => {
     const hooks = (await plugin({} as any, {})) as any;
-    const sysOut: any = { system: [] };
-    await hooks["experimental.chat.system.transform"](
-      { model: multimodalModel } as any,
-      sysOut,
-    );
-    expect(sysOut.system.length).toBe(0);
+    const out: any = { parts: imgParts() };
+    await hooks["chat.message"]({ model: { modelID: "m" } }, out);
+    expect(out.parts.some((p: any) => p.type === "file")).toBe(true); // untouched
+  });
+
+  it("should not rewrite the subagent's own messages", async () => {
+    const hooks = (await plugin({} as any, { model: "p/v" })) as any;
+    await hooks["chat.params"]({
+      model: { id: "multi", capabilities: { input: { image: true }, output: {} } },
+    });
+    const out: any = { parts: imgParts() };
+    await hooks["chat.message"]({ model: { modelID: "multi" }, agent: "vision" }, out);
+    expect(out.parts.some((p: any) => p.type === "file")).toBe(true); // untouched
   });
 });
