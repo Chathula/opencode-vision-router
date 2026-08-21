@@ -200,20 +200,31 @@ Please file issues for bugs, hook-contract changes in opencode, or model-compati
 ## 🚀 Releasing
 
 Releases are published to npm automatically via GitHub Actions (`.github/workflows/release.yml`)
-when a **GitHub Release is published**.
+when a `v*` tag is pushed. Publishing uses **OIDC provenance** — no `NPM_TOKEN` secret is required.
+
+### One-time setup (npm Trusted Publisher)
+
+In npm, configure a Trusted Publisher for this package so the OIDC token from GitHub Actions
+is accepted:
+
+1. Log in to npmjs.com → your package → **Settings → Trusted Publishers → Add Publisher**.
+2. Choose **GitHub Actions**.
+3. Set:
+   - **Repository**: `Chathula/opencode-vision-router`
+   - **Workflow**: `release.yml`
+   - **Environment** (optional): leave blank
+
+### Publish a new version
 
 1. Bump the version in `package.json` (must match the tag, without the leading `v`).
 2. Commit and push the change.
-3. Create a Git tag and a GitHub Release:
+3. Create and push a tag:
    ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
+   git tag v0.1.3
+   git push origin v0.1.3
    ```
-   Then draft a **Release** for that tag on GitHub and click **Publish release**.
 4. The workflow runs the tests, verifies the tag matches `package.json`, and publishes
    `opencode-vision-router@<version>` to npm with build provenance.
-
-> Requires a `NPM_TOKEN` secret in the repo settings (an npm automation/publish token).
 
 > ⚠️ **Version slots are permanent.** Once a `package@version` is published — even briefly, and
 > even if later unpublished — npm forbids reusing that version number forever. Never publish throwaway
