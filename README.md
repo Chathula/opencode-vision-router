@@ -30,6 +30,7 @@ the vision subagent for you, so there are **no separate agent or skill files** t
 ## ✨ Features
 
 - 🖼️ **Pasted-image routing** — `data:` URLs, `file://` paths, and absolute paths all supported.
+- 📸 **Multiple images** — handles several pasted images in a single message, routing each one to the vision subagent.
 - 💸 **Cheap vision model** — point it at any image-capable model (`provider/model`).
 - 🧩 **Self-contained** — injects the vision subagent and system instruction at load time.
 - 🔒 **Safe by default** — the vision subagent can read the image but is denied edit/bash/webfetch.
