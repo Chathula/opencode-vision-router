@@ -55,13 +55,3 @@ const plugin: Plugin = async (_input, options) => {
 };
 
 export default plugin;
-
-// Reusable building blocks (also handy for testing or embedding elsewhere).
-export { resolveImagePath, decodeDataUrl, extForMime } from "./image";
-export { transformMessages, imagePointer } from "./transform";
-export {
-  applyConfig,
-  buildVisionAgentConfig,
-  delegationInstruction,
-} from "./agent";
-export type { Opts, FilePartLike, Msg } from "./types";

@@ -33,8 +33,6 @@ the vision subagent for you, so there are **no separate agent or skill files** t
 - 💸 **Cheap vision model** — point it at any image-capable model (`provider/model`).
 - 🧩 **Self-contained** — injects the vision subagent and system instruction at load time.
 - 🔒 **Safe by default** — the vision subagent can read the image but is denied edit/bash/webfetch.
-- ♻️ **Reusable core** — image decoding, message transform, and config injection are exported as
-  standalone, framework-free functions you can embed anywhere.
 - ⚡ **No build step** — opencode runs plugins on Bun, which executes TypeScript natively.
 
 ## 🧠 How it works
@@ -119,22 +117,14 @@ Then **restart opencode** — plugins are not hot-reloaded.
 }
 ```
 
-### Using the reusable core in your own code
+### Consuming the plugin
 
-The building blocks are exported and dependency-light — use them outside the plugin too:
-
-```ts
-import { resolveImagePath, transformMessages, applyConfig } from "opencode-vision-router";
-
-// Decode a pasted image data URL to a file path:
-const path = resolveImagePath({ type: "file", mime: "image/png", url: dataUrl });
-
-// Or transform a whole message list:
-const messages = transformMessages(history, "vision", "/tmp");
-
-// Or inject the agent/config into an opencode Config object:
-applyConfig(myConfig, { model: "opencode-go/qwen3.7-plus" });
-```
+`opencode-vision-router` is an opencode plugin and is wired up only through your `opencode.json`
+(see Installation / Configuration above). Its helper functions (`image.ts`, `transform.ts`,
+`agent.ts`) are plain, dependency-free implementation details used by the plugin itself and
+covered by the test suite — they are intentionally **not** part of the package's public API, so
+import them from the source tree only if you are extending the plugin, not from the published
+package.
 
 ## 🖥️ Screenshots
 
@@ -170,7 +160,7 @@ bunx tsc --noEmit   # type-check
 
 ```
 src/
-  index.ts        # plugin entrypoint (default export) + public re-exports
+  index.ts        # plugin entrypoint — default export only (no public re-exports)
   types.ts        # shared option & message types
   image.ts        # resolveImagePath, decodeDataUrl, extForMime
   transform.ts    # transformMessages, imagePointer (pure)
