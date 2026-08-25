@@ -207,12 +207,6 @@ Contributions welcome! This is a small, single-purpose plugin, so the bar for pa
 
 Please file issues for bugs, hook-contract changes in opencode, or model-compatibility reports.
 
-## 📋 Roadmap
-
-- [ ] Support additional vision providers out of the box.
-- [ ] Optional image downscaling before caching to save tokens.
-- [ ] A debug mode that logs the resolved temp paths.
-
 ## 🚀 Releasing
 
 Publishing, OIDC/Trusted-Publisher setup, and the build→`dist/` flow are documented in
