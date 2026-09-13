@@ -29,40 +29,51 @@ the vision subagent for you, so there are **no separate agent or skill files** t
 
 ## ✨ Features
 
-- 🖼️ **Pasted-image routing** — `data:` URLs, `file://` paths, and absolute paths all supported.
+- 🖼️ **Pasted-image routing** — `data:` URLs, `file://` paths, absolute paths, and OpenCode V2 raw media parts all supported.
 - 📸 **Multiple images** — handles several pasted images in a single message, routing each one to the vision subagent.
 - 💸 **Cheap vision model** — point it at any image-capable model (`provider/model`).
 - 🧠 **Multimodal-aware** — if your main model already sees images, routing is skipped automatically. Set `force` to always route (e.g. to a cheaper vision model).
 - 🧩 **Self-contained** — injects the vision subagent and system instruction at load time.
 - 🔒 **Safe by default** — the vision subagent can read the image but is denied edit/bash/webfetch.
-- ⚡ **No build step** — opencode runs plugins on Bun, which executes TypeScript natively.
+- ⚡ **OpenCode 1 & 2** — one default export supports both the V1 plugin API (`server()`) and the V2 plugin API (`setup()`), plus V2 model-catalog capability detection and V2 message media parts.
 
 ## 🧠 How it works
 
-```mermaid
-flowchart LR
-  A[User pastes image] --> B[experimental.chat.messages.transform]
-  B -->|strip image, write temp file| C[text pointer with path]
-  C --> D[Main text-only agent]
-  D -->|system instruction| E[Task tool]
-  E --> F[Injected vision subagent]
-  F -->|read temp file| G[Cheap vision model]
-  G -->|text analysis| D
-```
+The plugin registers the following behavior at load time, in whichever API shape your
+opencode version supports:
 
-1. **`config`** — at load time, declare the chosen model as image-capable (`modalities` +
-   `attachment`) and inject the `vision` subagent.
-2. **`experimental.chat.system.transform`** — instruct the main agent to delegate any image pointer
-   to the subagent via the Task tool.
-3. **`experimental.chat.messages.transform`** — strip the image from the user message and replace it
-   with a text pointer containing the temp-file path, so the text-only model never sees the bytes.
+1. **Vision subagent injection** — declare the chosen model as image-capable and inject the
+   `vision` subagent (V1 `config` hook / V2 `agent.transform`).
+2. **Capability detection** — per model, learn whether the main model can see images
+   (V1 `chat.params` learning / V2 model-catalog lookup), so multimodal main models are
+   skipped unless `force` is set.
+3. **Image rewrite** — strip the image from the user message and replace it with a text
+   pointer containing the resolved path, so a text-only model never sees the bytes:
+   - V1: `chat.message` (primary) + `experimental.chat.messages.transform` (backup).
+   - V2: a `session.hook("context")` registered in `setup()`, which rewrites `media`
+     parts in the assembled messages immediately before each agent model request and
+     covers both fresh attachments and history.
 
-> ⚠️ This plugin relies on opencode's **experimental** `experimental.chat.messages.transform` and
-> `experimental.chat.system.transform` hooks, which may change in future opencode versions.
+> ⚠️ V1 relies on opencode's **experimental** `experimental.chat.messages.transform` hook,
+> which may change in future opencode versions. In V2 the equivalent is the stable
+> `context` session hook.
 
 ## 📦 Installation
 
-Add it to your `opencode.json`. opencode auto-installs npm plugins at startup via Bun:
+Add it to your `opencode.json(c)` and restart opencode — plugins are not hot-reloaded.
+
+**OpenCode 2** uses the `plugins` key with a package/options object:
+
+```json
+{
+  "plugins": [
+    { "package": "opencode-vision-router", "options": { "model": "opencode-go/qwen3.7-plus" } }
+  ]
+}
+```
+
+**OpenCode 1** uses the `plugin` key with a package/options tuple
+(OpenCode `1.18.29` or newer is required for the object-form entrypoint this plugin ships):
 
 ```json
 {
@@ -71,8 +82,6 @@ Add it to your `opencode.json`. opencode auto-installs npm plugins at startup vi
   ]
 }
 ```
-
-Then **restart opencode** — plugins are not hot-reloaded.
 
 ## ⚙️ Configuration
 
@@ -87,6 +96,18 @@ Then **restart opencode** — plugins are not hot-reloaded.
 
 ### Basic
 
+OpenCode 2:
+
+```json
+{
+  "plugins": [
+    { "package": "opencode-vision-router", "options": { "model": "opencode-go/qwen3.7-plus" } }
+  ]
+}
+```
+
+OpenCode 1 (>= 1.18.29):
+
 ```json
 {
   "plugin": [
@@ -99,9 +120,9 @@ Then **restart opencode** — plugins are not hot-reloaded.
 
 ```json
 {
-  "plugin": [
+  "plugins": [
     "@dodopayments/opencode-plugin",
-    ["opencode-vision-router", { "model": "opencode-go/qwen3.7-plus" }]
+    { "package": "opencode-vision-router", "options": { "model": "opencode-go/qwen3.7-plus" } }
   ]
 }
 ```
@@ -110,15 +131,15 @@ Then **restart opencode** — plugins are not hot-reloaded.
 
 ```json
 {
-  "plugin": [
-    [
-      "opencode-vision-router",
-      {
+  "plugins": [
+    {
+      "package": "opencode-vision-router",
+      "options": {
         "model": "anthropic/claude-3-5-haiku",
         "agent": "image-reader",
         "tmpDir": "/var/tmp/opencode-vision"
       }
-    ]
+    }
   ]
 }
 ```
@@ -131,11 +152,11 @@ text model as main:
 
 ```json
 {
-  "plugin": [
-    ["opencode-vision-router", {
-      "model": "openai/gpt-4o-mini",
-      "force": true
-    }]
+  "plugins": [
+    {
+      "package": "opencode-vision-router",
+      "options": { "model": "openai/gpt-4o-mini", "force": true }
+    }
   ]
 }
 ```
@@ -186,11 +207,11 @@ bunx tsc --noEmit   # type-check
 
 ```
 src/
-  index.ts        # plugin entrypoint — default export only (no public re-exports)
+  index.ts        # plugin entrypoint — dual V1/V2 default export (no public re-exports)
   types.ts        # shared option & message types
-  image.ts        # resolveImagePath, decodeDataUrl, extForMime
-  transform.ts    # transformMessages, imagePointer (pure)
-  agent.ts        # buildVisionAgentConfig, applyConfig, delegationInstruction
+  image.ts        # resolveImagePath / resolveMediaPath, decodeDataUrl, extForMime
+  transform.ts    # transformMessages / transformV2Messages, imagePointer (pure)
+  agent.ts        # buildVisionAgentConfig, applyConfig, applyAgent, delegationInstruction
   index.test.ts   # Bun tests
 ```
 

@@ -1,6 +1,12 @@
-import type { Plugin } from "@opencode-ai/plugin";
-import { applyConfig } from "./agent";
-import { transformMessages, isImagePart, imagePointer } from "./transform";
+import { Plugin } from "@opencode/plugin";
+import type { Plugin as V1Plugin } from "@opencode-ai/plugin";
+import { applyAgent, applyConfig } from "./agent";
+import {
+  isImagePart,
+  imagePointer,
+  transformMessages,
+  transformV2Messages,
+} from "./transform";
 import { resolveImagePath } from "./image";
 import type { Msg, Opts } from "./types";
 
@@ -18,14 +24,35 @@ import type { Msg, Opts } from "./types";
  * main model sees the image directly). Set `force: true` to always route — e.g.
  * to send images to a cheaper vision model while keeping a stronger text model
  * as main.
+ *
+ * The default export supports both OpenCode V1 and V2:
+ * - V1 (>= 1.18.29) calls `server(input, options)` and uses the returned hooks.
+ * - V2 validates the export's `id` + `setup()` and runs the V2 implementation.
  */
 
-const plugin: Plugin = async (_input, options) => {
+const PLUGIN_ID = "opencode-vision-router";
+
+/** Shared option parsing + the image-pointer instruction. */
+function parseOptions(options: Record<string, unknown> | undefined) {
   const opts = (options ?? {}) as Opts;
-  const agentName = opts.agent || "vision";
-  const tmpDir = opts.tmpDir;
-  const hasModel = !!opts.model;
-  const force = !!opts.force;
+  return {
+    opts,
+    agentName: opts.agent || "vision",
+    tmpDir: opts.tmpDir,
+    hasModel: !!opts.model,
+    force: !!opts.force,
+  };
+}
+
+const NO_MODEL_WARNING =
+  "[opencode-vision-router] no `model` option set; vision routing disabled.";
+
+// ---------------------------------------------------------------------------
+// V1 implementation (unchanged behavior)
+// ---------------------------------------------------------------------------
+
+const v1Plugin: V1Plugin = async (_input, options) => {
+  const { opts, agentName, tmpDir, hasModel, force } = parseOptions(options);
 
   // modelID -> image-capable, learned from `chat.params` (full Model capabilities).
   // `chat.message` runs before `chat.params` in a turn, so the very first message
@@ -34,11 +61,7 @@ const plugin: Plugin = async (_input, options) => {
   const capabilities = new Map<string, boolean>();
   let routeEnabled = hasModel;
 
-  if (!hasModel) {
-    console.warn(
-      "[opencode-vision-router] no `model` option set; vision routing disabled.",
-    );
-  }
+  if (!hasModel) console.warn(NO_MODEL_WARNING);
 
   return {
     // Inject the vision subagent at load time.
@@ -88,4 +111,78 @@ const plugin: Plugin = async (_input, options) => {
   };
 };
 
-export default plugin;
+// ---------------------------------------------------------------------------
+// V2 implementation
+// ---------------------------------------------------------------------------
+
+const v2Plugin = Plugin.define({
+  id: PLUGIN_ID,
+  async setup(ctx) {
+    const { opts, agentName, tmpDir, hasModel, force } = parseOptions(
+      ctx.options as Record<string, unknown> | undefined,
+    );
+
+    if (!hasModel) console.warn(NO_MODEL_WARNING);
+
+    // modelID -> image-capable, learned from the model catalog on first use and
+    // memoized per provider/model. Unknown models default to routing, matching
+    // the V1 behavior before a model's capability is known.
+    const capabilities = new Map<string, boolean>();
+    const isImageCapable = async (providerID: string, modelID: string) => {
+      const key = `${providerID}/${modelID}`;
+      const cached = capabilities.get(key);
+      if (cached !== undefined) return cached;
+      try {
+        const { data } = await ctx.catalog.model.list();
+        const model = (data as any[]).find(
+          (m) => m.providerID === providerID && (m.modelID ?? m.id) === modelID,
+        );
+        const img =
+          Array.isArray(model?.capabilities?.input) &&
+          model.capabilities.input.includes("image");
+        capabilities.set(key, img);
+        return img;
+      } catch {
+        return false;
+      }
+    };
+
+    if (hasModel) {
+      // Inject the vision subagent (agent.update upserts missing agents).
+      await ctx.agent.transform((editor) => {
+        applyAgent(editor as any, opts);
+      });
+    }
+
+    // Rewrite image media parts on user messages immediately before each
+    // agent-loop model request. This covers both fresh attachments and image
+    // parts already in history (the equivalent of V1's chat.message +
+    // experimental.chat.messages.transform). Capability comes from the model
+    // catalog, so no learning hooks are needed.
+    await ctx.session.hook("context", async (event) => {
+      if (!hasModel) return;
+      if (event.agent === agentName) return; // never rewrite the subagent
+      const isMultimodal = await isImageCapable(
+        event.model.providerID,
+        event.model.id,
+      );
+      if (!force && isMultimodal) return;
+      (event as any).messages = transformV2Messages(
+        event.messages as any[],
+        agentName,
+        tmpDir,
+      );
+    });
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Dual V1/V2 default export
+// ---------------------------------------------------------------------------
+
+export default {
+  ...v2Plugin,
+  async server(input: unknown, options?: Record<string, unknown>) {
+    return v1Plugin(input as any, options);
+  },
+};

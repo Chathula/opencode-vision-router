@@ -1,6 +1,6 @@
 {
   "name": "opencode-vision-router",
-  "version": "0.1.10",
+  "version": "0.2.0",
   "description": "Route pasted images to a cheap vision model in opencode so text-only main agents work from its text output.",
   "type": "module",
   "main": "dist/index.js",
@@ -18,7 +18,10 @@
   },
   "scripts": {
     "test": "bun test",
-    "build": "bun build src/index.ts --outfile dist/index.js --target=node"
+    "build": "bun build src/index.ts --outfile dist/index.js --target=node --external @opencode/plugin"
+  },
+  "dependencies": {
+    "@opencode/plugin": "^2.0.3"
   },
   "devDependencies": {
     "@opencode-ai/plugin": "^1.18.19",
