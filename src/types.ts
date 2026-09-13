@@ -25,3 +25,12 @@ export interface Msg {
   info?: { role?: string };
   parts: any[];
 }
+
+/** OpenCode V2 media content part (`Message.content[]` entry). */
+export interface MediaPartLike {
+  type: "media";
+  mediaType?: string;
+  data?: string | Uint8Array;
+  filename?: string;
+  metadata?: Record<string, unknown>;
+}

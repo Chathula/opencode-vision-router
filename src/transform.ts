@@ -1,5 +1,5 @@
-import { resolveImagePath } from "./image";
-import type { FilePartLike, Msg } from "./types";
+import { resolveImagePath, resolveMediaPath } from "./image";
+import type { FilePartLike, MediaPartLike, Msg } from "./types";
 
 const IMAGE_PREFIX = "[The user attached an image, saved at:";
 const IMAGE_SUFFIX = "]";
@@ -46,5 +46,54 @@ export function transformMessages(
     });
 
     return replaced ? { ...msg, parts: newParts } : msg;
+  });
+}
+
+/** OpenCode V2 message: `role` plus a `content` array of parts. */
+export interface V2Msg {
+  role?: string;
+  content?: unknown;
+}
+
+/** V2 media part carrying image bytes. */
+export function isMediaImagePart(part: any): part is MediaPartLike {
+  return (
+    part?.type === "media" &&
+    typeof part.mediaType === "string" &&
+    part.mediaType.startsWith("image/")
+  );
+}
+
+/**
+ * V2 variant of `transformMessages`: OpenCode V2 messages use `role` + a
+ * `content` array, and images arrive as `media` parts carrying raw bytes.
+ * Replace image media parts on user messages with the text pointer. Returns a
+ * new message array; the input is not mutated.
+ */
+export function transformV2Messages(
+  messages: V2Msg[],
+  agentName: string,
+  tmpDir?: string,
+): V2Msg[] {
+  return messages.map((msg) => {
+    if (msg?.role && msg.role !== "user") return msg;
+    const parts = msg?.content;
+    if (!Array.isArray(parts)) return msg;
+    const hasImage = (parts as any[]).some(isMediaImagePart);
+    if (!hasImage) return msg;
+
+    let replaced = false;
+    const newParts = (parts as any[]).map((part) => {
+      if (isMediaImagePart(part)) {
+        const path = resolveMediaPath(part, tmpDir);
+        if (path) {
+          replaced = true;
+          return { type: "text", text: imagePointer(path, agentName) };
+        }
+      }
+      return part;
+    });
+
+    return replaced ? { ...msg, content: newParts } : msg;
   });
 }

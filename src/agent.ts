@@ -53,3 +53,32 @@ export function delegationInstruction(agentName: string): string {
     `delegate analysis to the "${agentName}" subagent via the Task tool, passing the path and the user's request.`
   );
 }
+
+/**
+ * OpenCode V2: upsert the vision subagent through an `agent.transform` editor.
+ * V2 has no mutable global config hook, so the agent is registered directly
+ * with the agent domain (editor.update creates missing agents).
+ */
+export function applyAgent(
+  editor: { update(id: string, update: (agent: any) => void): void },
+  opts: Opts,
+): void {
+  const model = opts.model;
+  if (!model) return;
+  const [providerID, modelID] = model.split("/");
+  if (!providerID || !modelID) return;
+  const agentName = opts.agent || "vision";
+  editor.update(agentName, (agent) => {
+    agent.name = agentName;
+    agent.description = buildVisionAgentConfig(opts).description;
+    agent.mode = "subagent";
+    agent.model = { providerID, id: modelID };
+    agent.system = buildVisionAgentConfig(opts).prompt;
+    agent.permissions = [
+      { action: "external_directory", resource: "*", effect: "allow" },
+      { action: "shell", resource: "*", effect: "deny" },
+      { action: "edit", resource: "*", effect: "deny" },
+      { action: "webfetch", resource: "*", effect: "deny" },
+    ];
+  });
+}
