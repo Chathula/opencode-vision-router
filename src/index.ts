@@ -124,26 +124,44 @@ const v2Plugin = Plugin.define({
 
     if (!hasModel) console.warn(NO_MODEL_WARNING);
 
-    // modelID -> image-capable, learned from the model catalog on first use and
-    // memoized per provider/model. Unknown models default to routing, matching
-    // the V1 behavior before a model's capability is known.
+    // modelID -> image-capable, learned from the model registry (`ctx.model.list`)
+    // on first use and memoized per provider/model. Unknown models default to
+    // routing, matching the V1 behavior before a model's capability is known.
+    // Note: the V2 plugin context has no `catalog` domain, so lookups must go
+    // through the registry — it also covers models declared via config
+    // `providers` overrides that the models.dev catalog may not carry yet.
     const capabilities = new Map<string, boolean>();
+    const warned = new Set<string>();
     const isImageCapable = async (providerID: string, modelID: string) => {
       const key = `${providerID}/${modelID}`;
       const cached = capabilities.get(key);
       if (cached !== undefined) return cached;
+      const failOpen = (reason: string) => {
+        if (!warned.has(key)) {
+          warned.add(key);
+          console.warn(
+            `[opencode-vision-router] ${reason}; defaulting to vision routing`,
+          );
+        }
+        capabilities.set(key, false);
+        return false;
+      };
       try {
-        const { data } = await ctx.catalog.model.list();
-        const model = (data as any[]).find(
+        const res = await ctx.model.list();
+        const rows: any[] = Array.isArray(res) ? res : ((res as any)?.data ?? []);
+        const model = rows.find(
           (m) => m.providerID === providerID && (m.modelID ?? m.id) === modelID,
         );
+        if (!model) return failOpen(`model ${key} not in registry`);
+        const caps: any = (model as any).capabilities;
         const img =
-          Array.isArray(model?.capabilities?.input) &&
-          model.capabilities.input.includes("image");
+          (Array.isArray(caps?.input) && caps.input.includes("image")) ||
+          !!caps?.input?.image ||
+          !!caps?.attachment;
         capabilities.set(key, img);
         return img;
       } catch {
-        return false;
+        return failOpen(`capability lookup failed for ${key}`);
       }
     };
 
@@ -158,7 +176,7 @@ const v2Plugin = Plugin.define({
     // agent-loop model request. This covers both fresh attachments and image
     // parts already in history (the equivalent of V1's chat.message +
     // experimental.chat.messages.transform). Capability comes from the model
-    // catalog, so no learning hooks are needed.
+    // registry, so no learning hooks are needed.
     await ctx.session.hook("context", async (event) => {
       if (!hasModel) return;
       if (event.agent === agentName) return; // never rewrite the subagent

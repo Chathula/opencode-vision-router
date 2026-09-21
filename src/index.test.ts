@@ -341,6 +341,106 @@ describe("OpenCode V2 agent injection", () => {
   });
 });
 
+describe("plugin V2 routing per model capability", () => {
+  const imgContent = () => [
+    { type: "text", text: "what is this?" },
+    { type: "media", mediaType: "image/png", data: "AAAA" },
+  ];
+
+  const rows = [
+    { providerID: "p", modelID: "multi", capabilities: { input: ["text", "image"] } },
+    { providerID: "p", modelID: "text", capabilities: { input: ["text"] } },
+    { providerID: "p", modelID: "legacy", capabilities: { input: { text: true, image: true } } },
+    { providerID: "p", modelID: "attached", capabilities: { attachment: true } },
+  ];
+
+  // Load the V2 implementation with a fake ctx. There is deliberately no
+  // `catalog` property: the V2 plugin context does not expose one.
+  const loadV2 = async (options: any) => {
+    const hooks: Record<string, (event: any) => Promise<void>> = {};
+    const ctx: any = {
+      options,
+      model: { list: async () => ({ data: rows }) },
+      agent: {
+        transform: async (cb: any) => {
+          cb({ update: () => {} });
+          return { dispose: async () => {} };
+        },
+      },
+      session: {
+        hook: async (name: string, cb: any) => {
+          hooks[name] = cb;
+          return { dispose: async () => {} };
+        },
+      },
+    };
+    await (plugin as any).setup(ctx);
+    return hooks.context!;
+  };
+
+  const turn = async (context: any, modelID: string, agent = "main") => {
+    const event: any = {
+      agent,
+      model: { providerID: "p", id: modelID },
+      messages: [{ role: "user", content: imgContent() }],
+    };
+    await context(event);
+    return event;
+  };
+
+  const hasMedia = (event: any) =>
+    event.messages[0].content.some((p: any) => p.type === "media");
+  const hasPointer = (event: any) =>
+    event.messages[0].content.some(
+      (p: any) => p.type === "text" && p.text.includes("[The user attached an image"),
+    );
+
+  it("should skip routing when the main model is multimodal", async () => {
+    const event = await turn(await loadV2({ model: "p/v" }), "multi");
+    expect(hasMedia(event)).toBe(true);
+    expect(hasPointer(event)).toBe(false);
+  });
+
+  it("should route when the main model is text-only", async () => {
+    const event = await turn(await loadV2({ model: "p/v" }), "text");
+    expect(hasMedia(event)).toBe(false);
+    expect(hasPointer(event)).toBe(true);
+  });
+
+  it("should recognize legacy capability shapes (input.image, attachment)", async () => {
+    expect(hasMedia(await turn(await loadV2({ model: "p/v" }), "legacy"))).toBe(true);
+    expect(hasMedia(await turn(await loadV2({ model: "p/v" }), "attached"))).toBe(true);
+  });
+
+  it("should route for unknown models (fail-open) and warn exactly once", async () => {
+    const warnings: string[] = [];
+    const origWarn = console.warn;
+    console.warn = (...args: any[]) => void warnings.push(args.join(" "));
+    let first, second;
+    try {
+      const context = await loadV2({ model: "p/v" });
+      first = await turn(context, "mystery");
+      second = await turn(context, "mystery");
+    } finally {
+      console.warn = origWarn;
+    }
+    expect(hasMedia(first!)).toBe(false);
+    expect(hasMedia(second!)).toBe(false);
+    expect(warnings.filter((w) => w.includes("not in registry"))).toHaveLength(1);
+  });
+
+  it("should route even on a multimodal main model when force is true", async () => {
+    const event = await turn(await loadV2({ model: "p/v", force: true }), "multi");
+    expect(hasMedia(event)).toBe(false);
+    expect(hasPointer(event)).toBe(true);
+  });
+
+  it("should not rewrite the subagent's own messages", async () => {
+    const event = await turn(await loadV2({ model: "p/v" }), "text", "vision");
+    expect(hasMedia(event)).toBe(true);
+  });
+});
+
 describe("dual V1/V2 default export", () => {
   it("should expose a V2 definition (id + setup) and a V1 server() function", () => {
     expect(typeof (plugin as any).id).toBe("string");
