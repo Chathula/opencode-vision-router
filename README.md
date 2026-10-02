@@ -45,7 +45,7 @@ opencode version supports:
 1. **Vision subagent injection** — declare the chosen model as image-capable and inject the
    `vision` subagent (V1 `config` hook / V2 `agent.transform`).
 2. **Capability detection** — per model, learn whether the main model can see images
-   (V1 `chat.params` learning / V2 model-registry lookup via `ctx.model.list`), so multimodal main models are
+   (V1 `chat.params` learning / V2 model-registry lookup), so multimodal main models are
    skipped unless `force` is set.
 3. **Image rewrite** — strip the image from the user message and replace it with a text
    pointer containing the resolved path, so a text-only model never sees the bytes:

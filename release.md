@@ -19,7 +19,7 @@ This keeps the published tarball small and self-contained. To test the build loc
 
 ```bash
 bun run build      # produces dist/index.js
-npm publish --dry-run --access public   # inspect the tarball without publishing
+npm pack --dry-run     # inspect the tarball without publishing
 ```
 
 ## One-time setup (npm Trusted Publisher)
@@ -48,5 +48,5 @@ accepted (no long-lived token needed):
 
 > ⚠️ **Version slots are permanent.** Once a `package@version` is published — even briefly, and
 > even if later unpublished — npm forbids reusing that version number forever. Never publish
-> throwaway test versions. PRs run a `npm publish --dry-run` guard (`.github/workflows/ci.yml`)
+> throwaway test versions. PRs run a `npm pack --dry-run` guard (`.github/workflows/ci.yml`)
 > that validates packaging **without** consuming a version.

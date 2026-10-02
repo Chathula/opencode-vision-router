@@ -354,13 +354,14 @@ describe("plugin V2 routing per model capability", () => {
     { providerID: "p", modelID: "attached", capabilities: { attachment: true } },
   ];
 
-  // Load the V2 implementation with a fake ctx. There is deliberately no
-  // `catalog` property: the V2 plugin context does not expose one.
-  const loadV2 = async (options: any) => {
+  // Load the V2 implementation with a fake ctx. `catalog` is the pre-rename
+  // location (2.0.x); `model` is where newer 2.x releases expose the registry.
+  const loadV2 = async (options: any, useCatalog = false) => {
     const hooks: Record<string, (event: any) => Promise<void>> = {};
     const ctx: any = {
       options,
-      model: { list: async () => ({ data: rows }) },
+      model: useCatalog ? undefined : { list: async () => ({ data: rows }) },
+      catalog: useCatalog ? { model: { list: async () => ({ data: rows }) } } : undefined,
       agent: {
         transform: async (cb: any) => {
           cb({ update: () => {} });
@@ -410,6 +411,12 @@ describe("plugin V2 routing per model capability", () => {
   it("should recognize legacy capability shapes (input.image, attachment)", async () => {
     expect(hasMedia(await turn(await loadV2({ model: "p/v" }), "legacy"))).toBe(true);
     expect(hasMedia(await turn(await loadV2({ model: "p/v" }), "attached"))).toBe(true);
+  });
+
+  it("should read the registry from catalog.model on older 2.x hosts", async () => {
+    const event = await turn(await loadV2({ model: "p/v" }, true), "multi");
+    expect(hasMedia(event)).toBe(true);
+    expect(hasPointer(event)).toBe(false);
   });
 
   it("should route for unknown models (fail-open) and warn exactly once", async () => {

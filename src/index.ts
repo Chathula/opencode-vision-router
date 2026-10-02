@@ -124,12 +124,14 @@ const v2Plugin = Plugin.define({
 
     if (!hasModel) console.warn(NO_MODEL_WARNING);
 
-    // modelID -> image-capable, learned from the model registry (`ctx.model.list`)
-    // on first use and memoized per provider/model. Unknown models default to
-    // routing, matching the V1 behavior before a model's capability is known.
-    // Note: the V2 plugin context has no `catalog` domain, so lookups must go
-    // through the registry — it also covers models declared via config
-    // `providers` overrides that the models.dev catalog may not carry yet.
+    // modelID -> image-capable, learned from the model registry on first use and
+    // memoized per provider/model. Unknown models default to routing, matching
+    // the V1 behavior before a model's capability is known.
+    //
+    // The V2 context moved the read client: `@opencode/plugin` 2.0.x exposes it
+    // at `ctx.catalog.model`, while newer 2.x releases dropped `catalog` and
+    // expose the registry directly at `ctx.model`. Resolve whichever the running
+    // host provides so the plugin works across both.
     const capabilities = new Map<string, boolean>();
     const warned = new Set<string>();
     const isImageCapable = async (providerID: string, modelID: string) => {
@@ -147,13 +149,18 @@ const v2Plugin = Plugin.define({
         return false;
       };
       try {
-        const res = await ctx.model.list();
-        const rows: any[] = Array.isArray(res) ? res : ((res as any)?.data ?? []);
+        const c = ctx as any;
+        const registry = c.model ?? c.catalog?.model;
+        if (!registry?.list) {
+          return failOpen(`model registry unavailable for ${key}`);
+        }
+        const res = await registry.list();
+        const rows: any[] = Array.isArray(res) ? res : (res?.data ?? []);
         const model = rows.find(
           (m) => m.providerID === providerID && (m.modelID ?? m.id) === modelID,
         );
         if (!model) return failOpen(`model ${key} not in registry`);
-        const caps: any = (model as any).capabilities;
+        const caps: any = model.capabilities;
         const img =
           (Array.isArray(caps?.input) && caps.input.includes("image")) ||
           !!caps?.input?.image ||
