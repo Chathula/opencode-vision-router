@@ -21,12 +21,12 @@
     "build": "bun build src/index.ts --outfile dist/index.js --target=node --external @opencode/plugin"
   },
   "dependencies": {
-    "@opencode/plugin": "^2.0.3"
+    "@opencode/plugin": "^2.0.22"
   },
   "devDependencies": {
-    "@opencode-ai/plugin": "^1.18.19",
-    "@opencode-ai/sdk": "^1.18.19",
-    "@types/bun": "^1",
-    "typescript": "^5"
+    "@opencode-ai/plugin": "^1.18.34",
+    "@opencode-ai/sdk": "^1.18.34",
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2"
   }
 }
