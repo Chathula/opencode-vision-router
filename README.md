@@ -35,7 +35,7 @@ the vision subagent for you, so there are **no separate agent or skill files** t
 - 🧠 **Multimodal-aware** — if your main model already sees images, routing is skipped automatically. Set `force` to always route (e.g. to a cheaper vision model).
 - 🧩 **Self-contained** — injects the vision subagent and system instruction at load time.
 - 🔒 **Safe by default** — the vision subagent can read the image but is denied edit/bash/webfetch.
-- ⚡ **OpenCode 1 & 2** — one default export supports both the V1 plugin API (`server()`) and the V2 plugin API (`setup()`), plus V2 model-catalog capability detection and V2 message media parts.
+- ⚡ **OpenCode 1 & 2** — one default export supports both the V1 plugin API (`server()`) and the V2 plugin API (`setup()`), plus V2 model-registry capability detection and V2 message media parts.
 
 ## 🧠 How it works
 
@@ -45,7 +45,7 @@ opencode version supports:
 1. **Vision subagent injection** — declare the chosen model as image-capable and inject the
    `vision` subagent (V1 `config` hook / V2 `agent.transform`).
 2. **Capability detection** — per model, learn whether the main model can see images
-   (V1 `chat.params` learning / V2 model-catalog lookup), so multimodal main models are
+   (V1 `chat.params` learning / V2 model-registry lookup), so multimodal main models are
    skipped unless `force` is set.
 3. **Image rewrite** — strip the image from the user message and replace it with a text
    pointer containing the resolved path, so a text-only model never sees the bytes:
