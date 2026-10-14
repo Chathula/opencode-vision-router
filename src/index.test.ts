@@ -411,6 +411,72 @@ describe("transformV2Messages", () => {
     expect(out[0].content[0]).toEqual(msgs[0].content[0]);
   });
 
+  it("should not strip non-image file paths from tool results", () => {
+    const msgs = [
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            id: "t1",
+            name: "read",
+            result: {
+              type: "content",
+              value: [
+                { type: "file", uri: "/etc/passwd" },
+                { type: "file", uri: "file:///tmp/notes.txt" },
+                { type: "file", uri: "/tmp/report.pdf" },
+              ],
+            },
+          },
+        ],
+      },
+    ];
+    const out = transformV2Messages(msgs as any, "vision") as any;
+    const value = out[0].content[0].result.value;
+    expect(value.every((p: any) => p.type === "file")).toBe(true);
+    expect(value.map((p: any) => p.uri)).toEqual([
+      "/etc/passwd",
+      "file:///tmp/notes.txt",
+      "/tmp/report.pdf",
+    ]);
+  });
+
+  it("should strip image file paths by extension in tool results", () => {
+    const msgs = [
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            id: "t1",
+            name: "read",
+            result: {
+              type: "content",
+              value: [{ type: "file", uri: "file:///tmp/pic.png" }],
+            },
+          },
+        ],
+      },
+    ];
+    const out = transformV2Messages(msgs as any, "vision") as any;
+    const value = out[0].content[0].result.value;
+    expect(value.some((p: any) => p.type === "file")).toBe(false);
+    expect(value[0].text).toContain("/tmp/pic.png");
+  });
+
+  it("should strip V2 user file parts that carry a uri instead of url", () => {
+    const msgs = [
+      {
+        role: "user",
+        content: [{ type: "file", uri: "data:image/png;base64,AAAA" }],
+      },
+    ];
+    const out = transformV2Messages(msgs as any, "vision") as any;
+    expect(out[0].content[0].type).toBe("text");
+    expect(out[0].content[0].text).toContain("saved at:");
+  });
+
   it("should keep non-image media (e.g. audio) untouched", () => {
     const msgs = [
       {
@@ -434,6 +500,7 @@ describe("OpenCode V2 agent injection", () => {
     expect(agent.mode).toBe("subagent");
     expect(agent.model).toEqual({ providerID: "opencode-go", id: "qwen3.7-plus" });
     expect(agent.system).toContain("vision analysis subagent");
+    // V1/config object shape...
     expect(agent.permission).toEqual({
       external_directory: "allow",
       bash: "deny",
@@ -441,6 +508,14 @@ describe("OpenCode V2 agent injection", () => {
       webfetch: "deny",
       doom_loop: "deny",
     });
+    // ...and the V2 runtime Ruleset array, set together for cross-version support.
+    expect(agent.permissions).toEqual([
+      { action: "external_directory", resource: "*", effect: "allow" },
+      { action: "bash", resource: "*", effect: "deny" },
+      { action: "edit", resource: "*", effect: "deny" },
+      { action: "webfetch", resource: "*", effect: "deny" },
+      { action: "doom_loop", resource: "*", effect: "deny" },
+    ]);
   });
 
   it("should keep nested slashes in the model ID (split on the first slash only)", () => {

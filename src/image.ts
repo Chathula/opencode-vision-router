@@ -107,7 +107,8 @@ export function resolveMediaPath(
         if (url.startsWith("/")) return url;
       }
     }
-    const mime = part?.mediaType || part?.media?.mediaType || "image/png";
+    const mime =
+      part?.mediaType || part?.mime || part?.media?.mediaType || "image/png";
     const data = part?.data ?? (part?.media as any)?.data;
     if (typeof data === "string" && data.length > 0) {
       return writeDecoded({ mime, buffer: Buffer.from(data, "base64") }, tmpDir);
@@ -115,9 +116,9 @@ export function resolveMediaPath(
     if (data instanceof Uint8Array && data.length > 0) {
       return writeDecoded({ mime, buffer: Buffer.from(data) }, tmpDir);
     }
-    // top-level url (data URL, file path) on the part or the nested media object
+    // top-level url/uri (data URL, file path) on the part or the nested media object
     for (const obj of [part, part?.media] as any[]) {
-      const url = obj?.url;
+      const url = obj?.url ?? obj?.uri;
       if (typeof url !== "string" || !url) continue;
       const decoded = decodeDataUrl(url);
       if (decoded) return writeDecoded(decoded, tmpDir);

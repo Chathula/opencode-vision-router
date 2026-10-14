@@ -18,6 +18,8 @@ export interface FilePartLike {
   type: "file";
   mime: string;
   url: string;
+  /** OpenCode tool-result file parts use `uri` instead of `url`. */
+  uri?: string;
   filename?: string;
 }
 
@@ -30,6 +32,7 @@ export interface Msg {
 export interface MediaPartLike {
   type: "media";
   mediaType?: string;
+  mime?: string;
   data?: string | Uint8Array;
   filename?: string;
   metadata?: Record<string, unknown>;

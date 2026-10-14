@@ -66,18 +66,40 @@ export function isMediaImagePart(part: any): part is MediaPartLike {
   return typeof mediaType === "string" && mediaType.startsWith("image/");
 }
 
+const IMAGE_EXT =
+  /\.(png|jpe?g|gif|webp|bmp|svg|avif|heic|heif|tiff?)([?#]|$)/i;
+
 /**
  * An image file part embedded in a tool-result value. The read tool returns
- * images as data-URI file parts; these persist in history and are replayed to
- * the model on every later step, so they must be stripped for text-only models
- * too, not just images on user messages.
+ * images as data-URI file parts (or `file://`/absolute paths); these persist in
+ * history and are replayed to the model on every later step, so they must be
+ * stripped for text-only models too, not just images on user messages.
+ *
+ * Bare `file://`/absolute URIs are only treated as images when their MIME type
+ * or extension says so — otherwise unrelated tool file output would be stripped.
  */
 export function isFileUriImagePart(part: any): boolean {
   if (part?.type !== "file") return false;
-  const uri = part?.uri;
+  if (typeof part.mime === "string" && part.mime.startsWith("image/")) {
+    return true;
+  }
+  const uri = part?.uri ?? part?.url;
   if (typeof uri !== "string") return false;
   if (uri.startsWith("data:image/")) return true;
-  return uri.startsWith("file://") || uri.startsWith("/");
+  if (uri.startsWith("file://") || uri.startsWith("/")) {
+    return IMAGE_EXT.test(uri);
+  }
+  return false;
+}
+
+/** True when a V2 part carries an image in any shape this plugin understands. */
+function isImagePartLike(part: any): boolean {
+  return isMediaImagePart(part) || isImagePart(part) || isFileUriImagePart(part);
+}
+
+/** Resolve a readable path for any image-carrying V2 part, or null. */
+function resolveImagePartPath(part: any, tmpDir?: string): string | null {
+  return isImagePartLike(part) ? resolveMediaPath(part, tmpDir) : null;
 }
 
 /**
@@ -113,26 +135,14 @@ export function transformV2Messages(
     if (role && role !== "user") return msg;
     const parts = msg?.content;
     if (!Array.isArray(parts)) return msg;
-    const hasImage =
-      (parts as any[]).some(isMediaImagePart) ||
-      (parts as any[]).some(isImagePart);
-    if (!hasImage) return msg;
+    if (!(parts as any[]).some(isImagePartLike)) return msg;
 
     let replaced = false;
     const newParts = (parts as any[]).map((part) => {
-      if (isMediaImagePart(part)) {
-        const path = resolveMediaPath(part, tmpDir);
-        if (path) {
-          replaced = true;
-          return { type: "text", text: imagePointer(path, agentName) };
-        }
-      }
-      if (isImagePart(part)) {
-        const path = resolveMediaPath(part as any, tmpDir);
-        if (path) {
-          replaced = true;
-          return { type: "text", text: imagePointer(path, agentName) };
-        }
+      const path = resolveImagePartPath(part, tmpDir);
+      if (path) {
+        replaced = true;
+        return { type: "text", text: imagePointer(path, agentName) };
       }
       return part;
     });
@@ -157,22 +167,10 @@ function stripToolResultImages(
   }
   let replaced = false;
   const newValue = (result.value as any[]).map((item) => {
-    if (isFileUriImagePart(item)) {
-      const path = resolveMediaPath(
-        { ...item, media: { source: { type: "url", url: item.uri } } } as any,
-        tmpDir,
-      );
-      if (path) {
-        replaced = true;
-        return { type: "text", text: imagePointer(path, agentName) };
-      }
-    }
-    if (isMediaImagePart(item)) {
-      const path = resolveMediaPath(item, tmpDir);
-      if (path) {
-        replaced = true;
-        return { type: "text", text: imagePointer(path, agentName) };
-      }
+    const path = resolveImagePartPath(item, tmpDir);
+    if (path) {
+      replaced = true;
+      return { type: "text", text: imagePointer(path, agentName) };
     }
     return item;
   });
