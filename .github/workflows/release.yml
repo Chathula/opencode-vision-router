@@ -16,6 +16,9 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Publishing requires approval from the `release` environment's reviewers
+    # (repo owner only), in addition to the protected `v*` tag ruleset.
+    environment: release
     steps:
       - uses: actions/checkout@v6
 
