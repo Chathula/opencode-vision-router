@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { resolveImagePath, resolveMediaPath, decodeDataUrl, extForMime } from "./image";
-import { transformMessages, transformV2Messages, imagePointer } from "./transform";
+import { transformMessages, transformV2Messages, imagePointer, isMediaImagePart } from "./transform";
 import { applyConfig, applyAgent, buildVisionAgentConfig, delegationInstruction } from "./agent";
 import type { Config } from "@opencode-ai/plugin";
 import plugin from "./index";
@@ -266,6 +266,50 @@ describe("OpenCode V2 media helpers", () => {
       resolveMediaPath({ type: "media", mediaType: "image/png", filename: "z.png" }),
     ).toBe("z.png");
   });
+
+  it("should handle the opencode >= 2.0.x nested media shape (source.type base64)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vr-test-"));
+    const b64 = Buffer.from("nestedimagebytes").toString("base64");
+    const p = resolveMediaPath(
+      {
+        type: "media",
+        media: { source: { type: "base64", data: b64, mediaType: "image/png" } },
+        filename: "shot.png",
+      } as any,
+      dir,
+    );
+    expect(p).toBeTruthy();
+    expect(p!.startsWith(dir)).toBe(true);
+    expect(existsSync(p!)).toBe(true);
+    expect(p!.endsWith(".png")).toBe(true);
+  });
+
+  it("should resolve file:// and absolute paths from the nested source", () => {
+    expect(
+      resolveMediaPath({
+        type: "media",
+        media: { source: { type: "file", uri: "file:///orig/a.png" } },
+      } as any),
+    ).toBe("/orig/a.png");
+    expect(
+      resolveMediaPath({
+        type: "media",
+        media: { source: { type: "url", url: "/orig/b.png" } },
+      } as any),
+    ).toBe("/orig/b.png");
+  });
+
+  it("should detect image media parts in the nested shape", () => {
+    const nested = {
+      type: "media",
+      media: { source: { type: "base64", data: "AAAA", mediaType: "image/png" } },
+    };
+    expect(isMediaImagePart(nested)).toBe(true);
+    expect(isMediaImagePart({ type: "text", text: "x" })).toBe(false);
+    expect(
+      isMediaImagePart({ type: "media", media: { source: { mediaType: "application/pdf" } } }),
+    ).toBe(false);
+  });
 });
 
 describe("transformV2Messages", () => {
@@ -295,8 +339,142 @@ describe("transformV2Messages", () => {
       { role: "user", content: "just text" },
     ];
     const out = transformV2Messages(msgs as any, "vision") as any;
-    expect(out[0].content[0].type).toBe("media"); // unchanged (assistant)
     expect(out[1].content).toBe("just text");
+  });
+
+  it("should strip data-URI image file parts embedded in tool results", () => {
+    const msgs = [
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            id: "t1",
+            name: "read",
+            result: {
+              type: "content",
+              value: [
+                { type: "text", text: "Image read successfully" },
+                { type: "file", uri: "data:image/png;base64,AAAA" },
+              ],
+            },
+          },
+        ],
+      },
+    ];
+    const out = transformV2Messages(msgs as any, "vision") as any;
+    const value = out[0].content[0].result.value;
+    expect(value.some((p: any) => p.type === "file")).toBe(false);
+    expect(value.some((p: any) => p.type === "text" && p.text.includes("saved at:"))).toBe(true);
+  });
+
+  it("should strip image media parts from tool results too", () => {
+    const msgs = [
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            id: "t1",
+            name: "render",
+            result: {
+              type: "content",
+              value: [
+                { type: "media", mediaType: "image/png", data: "AAAA" },
+              ],
+            },
+          },
+        ],
+      },
+    ];
+    const out = transformV2Messages(msgs as any, "vision") as any;
+    const value = out[0].content[0].result.value;
+    expect(value.some((p: any) => p.type === "media")).toBe(false);
+    expect(value.some((p: any) => p.type === "text" && p.text.includes("saved at:"))).toBe(true);
+  });
+
+  it("should leave non-image tool results untouched", () => {
+    const msgs = [
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            id: "t1",
+            name: "shell",
+            result: { type: "text", value: "ok" },
+          },
+        ],
+      },
+    ];
+    const out = transformV2Messages(msgs as any, "vision") as any;
+    expect(out[0].content[0]).toEqual(msgs[0].content[0]);
+  });
+
+  it("should not strip non-image file paths from tool results", () => {
+    const msgs = [
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            id: "t1",
+            name: "read",
+            result: {
+              type: "content",
+              value: [
+                { type: "file", uri: "/etc/passwd" },
+                { type: "file", uri: "file:///tmp/notes.txt" },
+                { type: "file", uri: "/tmp/report.pdf" },
+              ],
+            },
+          },
+        ],
+      },
+    ];
+    const out = transformV2Messages(msgs as any, "vision") as any;
+    const value = out[0].content[0].result.value;
+    expect(value.every((p: any) => p.type === "file")).toBe(true);
+    expect(value.map((p: any) => p.uri)).toEqual([
+      "/etc/passwd",
+      "file:///tmp/notes.txt",
+      "/tmp/report.pdf",
+    ]);
+  });
+
+  it("should strip image file paths by extension in tool results", () => {
+    const msgs = [
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            id: "t1",
+            name: "read",
+            result: {
+              type: "content",
+              value: [{ type: "file", uri: "file:///tmp/pic.png" }],
+            },
+          },
+        ],
+      },
+    ];
+    const out = transformV2Messages(msgs as any, "vision") as any;
+    const value = out[0].content[0].result.value;
+    expect(value.some((p: any) => p.type === "file")).toBe(false);
+    expect(value[0].text).toContain("/tmp/pic.png");
+  });
+
+  it("should strip V2 user file parts that carry a uri instead of url", () => {
+    const msgs = [
+      {
+        role: "user",
+        content: [{ type: "file", uri: "data:image/png;base64,AAAA" }],
+      },
+    ];
+    const out = transformV2Messages(msgs as any, "vision") as any;
+    expect(out[0].content[0].type).toBe("text");
+    expect(out[0].content[0].text).toContain("saved at:");
   });
 
   it("should keep non-image media (e.g. audio) untouched", () => {
@@ -322,13 +500,34 @@ describe("OpenCode V2 agent injection", () => {
     expect(agent.mode).toBe("subagent");
     expect(agent.model).toEqual({ providerID: "opencode-go", id: "qwen3.7-plus" });
     expect(agent.system).toContain("vision analysis subagent");
-    expect(agent.permissions).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ action: "shell", effect: "deny" }),
-        expect.objectContaining({ action: "edit", effect: "deny" }),
-        expect.objectContaining({ action: "external_directory", effect: "allow" }),
-      ]),
+    // V1/config object shape...
+    expect(agent.permission).toEqual({
+      external_directory: "allow",
+      bash: "deny",
+      edit: "deny",
+      webfetch: "deny",
+      doom_loop: "deny",
+    });
+    // ...and the V2 runtime Ruleset array, set together for cross-version support.
+    expect(agent.permissions).toEqual([
+      { action: "external_directory", resource: "*", effect: "allow" },
+      { action: "bash", resource: "*", effect: "deny" },
+      { action: "edit", resource: "*", effect: "deny" },
+      { action: "webfetch", resource: "*", effect: "deny" },
+      { action: "doom_loop", resource: "*", effect: "deny" },
+    ]);
+  });
+
+  it("should keep nested slashes in the model ID (split on the first slash only)", () => {
+    const agents: any = {};
+    applyAgent(
+      { update: (id: string, update: (a: any) => void) => { const a: any = {}; update(a); agents[id] = a; } },
+      { model: "bifrost/vllm/zai/glm-5.3-flash", agent: "vision" },
     );
+    expect(agents["vision"].model).toEqual({
+      providerID: "bifrost",
+      id: "vllm/zai/glm-5.3-flash",
+    });
   });
 
   it("should be a no-op without a model", () => {

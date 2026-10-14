@@ -1,6 +1,30 @@
 import type { Config } from "@opencode-ai/plugin";
 import type { Opts } from "./types";
 
+/**
+ * Permission policy for the injected vision subagent, in the two shapes OpenCode
+ * has used:
+ * - `PERMISSION_OBJECT`: V1 config agents and V2 config `AgentConfig`
+ *   (`{ bash, edit, webfetch, external_directory, doom_loop }`).
+ * - `PERMISSION_RULES`: V2 runtime `Agent.Info`, which takes a Ruleset array.
+ * `external_directory: allow` lets the subagent read the decoded temp image.
+ */
+export const PERMISSION_OBJECT = {
+  external_directory: "allow",
+  bash: "deny",
+  edit: "deny",
+  webfetch: "deny",
+  doom_loop: "deny",
+} as const;
+
+export const PERMISSION_RULES = [
+  { action: "external_directory", resource: "*", effect: "allow" },
+  { action: "bash", resource: "*", effect: "deny" },
+  { action: "edit", resource: "*", effect: "deny" },
+  { action: "webfetch", resource: "*", effect: "deny" },
+  { action: "doom_loop", resource: "*", effect: "deny" },
+] as const;
+
 /** Build the config object for the injected vision subagent. */
 export function buildVisionAgentConfig(opts: Opts): Record<string, any> {
   const agentName = opts.agent || "vision";
@@ -12,13 +36,7 @@ export function buildVisionAgentConfig(opts: Opts): Record<string, any> {
     prompt:
       "You are a vision analysis subagent. You are given an image FILE PATH and a question. " +
       "Use the read tool on the path to load the image, analyze it, and return ONLY the textual analysis.",
-    permission: {
-      external_directory: "allow",
-      bash: "deny",
-      edit: "deny",
-      webfetch: "deny",
-      doom_loop: "deny",
-    },
+    permission: { ...PERMISSION_OBJECT },
   } as Record<string, any>;
 }
 
@@ -29,7 +47,11 @@ export function buildVisionAgentConfig(opts: Opts): Record<string, any> {
 export function applyConfig(cfg: Config, opts: Opts): void {
   const model = opts.model;
   if (!model) return;
-  const [provider, modelId] = model.split("/");
+  // Model IDs may contain slashes: split on the FIRST slash only.
+  const slash = model.indexOf("/");
+  if (slash < 0) return;
+  const provider = model.slice(0, slash);
+  const modelId = model.slice(slash + 1);
   if (!provider || !modelId) return;
 
   cfg.provider = cfg.provider || {};
@@ -65,20 +87,25 @@ export function applyAgent(
 ): void {
   const model = opts.model;
   if (!model) return;
-  const [providerID, modelID] = model.split("/");
-  if (!providerID || !modelID) return;
+  // Model IDs may contain slashes (e.g. `bifrost/vllm/zai/glm-5.3-flash`):
+  // split on the FIRST slash only, otherwise the model ID is truncated.
+  const slash = model.indexOf("/");
+  if (slash < 0) return;
+  const providerID = model.slice(0, slash);
+  const modelID = model.slice(slash + 1);
   const agentName = opts.agent || "vision";
+  const cfg = buildVisionAgentConfig(opts);
   editor.update(agentName, (agent) => {
     agent.name = agentName;
-    agent.description = buildVisionAgentConfig(opts).description;
+    agent.description = cfg.description;
     agent.mode = "subagent";
     agent.model = { providerID, id: modelID };
-    agent.system = buildVisionAgentConfig(opts).prompt;
-    agent.permissions = [
-      { action: "external_directory", resource: "*", effect: "allow" },
-      { action: "shell", resource: "*", effect: "deny" },
-      { action: "edit", resource: "*", effect: "deny" },
-      { action: "webfetch", resource: "*", effect: "deny" },
-    ];
+    agent.system = cfg.prompt;
+    // Set both permission shapes so the subagent can read the decoded temp image
+    // across V2 versions: runtime `Agent.Info` reads `permissions` (Ruleset
+    // array), while some 2.0.25+ / config-level paths read the `permission`
+    // object. Unknown fields are ignored by the host.
+    agent.permissions = PERMISSION_RULES.map((rule) => ({ ...rule }));
+    agent.permission = { ...PERMISSION_OBJECT };
   });
 }

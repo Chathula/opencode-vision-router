@@ -84,13 +84,46 @@ export function resolveMediaPath(
         if (value.startsWith("/")) return value;
       }
     }
-    const mime = part?.mediaType || "image/png";
-    const data = part?.data;
+    // OpenCode >= 2.0.x nests the payload: { media: { source: { type, data?, url?/uri?, mediaType } } }
+    const source = part?.media?.source;
+    if (source && typeof source === "object") {
+      const mime =
+        (source as any).mediaType ||
+        part?.media?.mediaType ||
+        part?.mediaType ||
+        "image/png";
+      const data = (source as any).data;
+      if (typeof data === "string" && data.length > 0) {
+        return writeDecoded({ mime, buffer: Buffer.from(data, "base64") }, tmpDir);
+      }
+      if (data instanceof Uint8Array && data.length > 0) {
+        return writeDecoded({ mime, buffer: Buffer.from(data) }, tmpDir);
+      }
+      const url: string | undefined = (source as any).url ?? (source as any).uri;
+      if (typeof url === "string" && url) {
+        const decoded = decodeDataUrl(url);
+        if (decoded) return writeDecoded(decoded, tmpDir);
+        if (url.startsWith("file://")) return decodeURIComponent(url.slice(7));
+        if (url.startsWith("/")) return url;
+      }
+    }
+    const mime =
+      part?.mediaType || part?.mime || part?.media?.mediaType || "image/png";
+    const data = part?.data ?? (part?.media as any)?.data;
     if (typeof data === "string" && data.length > 0) {
       return writeDecoded({ mime, buffer: Buffer.from(data, "base64") }, tmpDir);
     }
     if (data instanceof Uint8Array && data.length > 0) {
       return writeDecoded({ mime, buffer: Buffer.from(data) }, tmpDir);
+    }
+    // top-level url/uri (data URL, file path) on the part or the nested media object
+    for (const obj of [part, part?.media] as any[]) {
+      const url = obj?.url ?? obj?.uri;
+      if (typeof url !== "string" || !url) continue;
+      const decoded = decodeDataUrl(url);
+      if (decoded) return writeDecoded(decoded, tmpDir);
+      if (url.startsWith("file://")) return decodeURIComponent(url.slice(7));
+      if (url.startsWith("/")) return url;
     }
   } catch {
     return null;

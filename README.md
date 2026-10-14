@@ -29,13 +29,14 @@ the vision subagent for you, so there are **no separate agent or skill files** t
 
 ## ✨ Features
 
-- 🖼️ **Pasted-image routing** — `data:` URLs, `file://` paths, absolute paths, and OpenCode V2 raw media parts all supported.
+- 🖼️ **Pasted-image routing** — `data:` URLs, `file://` paths, absolute paths, and OpenCode V2 media parts (both the flat and the newer nested `media.source` shapes) all supported.
 - 📸 **Multiple images** — handles several pasted images in a single message, routing each one to the vision subagent.
+- 🔎 **History-safe** — also strips images embedded in tool results (e.g. the `read` tool), so they aren't replayed to a text-only model on later steps.
 - 💸 **Cheap vision model** — point it at any image-capable model (`provider/model`).
 - 🧠 **Multimodal-aware** — if your main model already sees images, routing is skipped automatically. Set `force` to always route (e.g. to a cheaper vision model).
 - 🧩 **Self-contained** — injects the vision subagent and system instruction at load time.
 - 🔒 **Safe by default** — the vision subagent can read the image but is denied edit/bash/webfetch.
-- ⚡ **OpenCode 1 & 2** — one default export supports both the V1 plugin API (`server()`) and the V2 plugin API (`setup()`), plus V2 model-registry capability detection and V2 message media parts.
+- ⚡ **OpenCode 1 & 2** — one default export supports the V1 plugin API (`server()`) and the V2 plugin API (`setup()`), including V2 releases before and after `2.0.25` (flat vs. nested media parts, `catalog.model` vs. `model` registry, and both agent-permission shapes).
 
 ## 🧠 How it works
 
@@ -50,9 +51,11 @@ opencode version supports:
 3. **Image rewrite** — strip the image from the user message and replace it with a text
    pointer containing the resolved path, so a text-only model never sees the bytes:
    - V1: `chat.message` (primary) + `experimental.chat.messages.transform` (backup).
-   - V2: a `session.hook("context")` registered in `setup()`, which rewrites `media`
+   - V2: a `session.hook("context")` registered in `setup()`, which rewrites `media`/`file`
      parts in the assembled messages immediately before each agent model request and
      covers both fresh attachments and history.
+   - Images embedded in **tool results** (e.g. a `read` of an image file) are stripped the
+     same way, so they are not replayed to a text-only model on later steps.
 
 > ⚠️ V1 relies on opencode's **experimental** `experimental.chat.messages.transform` hook,
 > which may change in future opencode versions. In V2 the equivalent is the stable
@@ -87,7 +90,7 @@ Add it to your `opencode.json(c)` and restart opencode — plugins are not hot-r
 
 | Option   | Required | Default       | Description                                                                                                                        |
 | -------- | -------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `model`  | yes      | —               | Vision-capable model as `provider/model` (e.g. `opencode-go/qwen3.7-plus`). If omitted, routing is disabled (a warning is logged). |
+| `model`  | yes      | —               | Vision-capable model as `provider/model` (e.g. `opencode-go/qwen3.7-plus`). Model IDs may themselves contain slashes (e.g. `bifrost/vllm/zai/glm-5.3-flash`) — the provider is everything before the first slash. If omitted, routing is disabled (a warning is logged). |
 | `agent`  | no       | `vision`        | Name of the injected vision subagent.                                                    |
 | `tmpDir` | no       | `os.tmpdir()`   | Directory under which decoded images are cached (content-hashed, reused across calls).    |
 | `force`  | no       | `false`         | Route images to the vision subagent even when the main model is multimodal (e.g. to use a cheaper vision model). By default the subagent is **skipped** when the main model can already see images. |
