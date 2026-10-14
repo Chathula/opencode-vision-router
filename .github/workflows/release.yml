@@ -16,8 +16,10 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # Publishing requires approval from the `release` environment's reviewers
-    # (repo owner only), in addition to the protected `v*` tag ruleset.
+    # `release` environment: tracks publish deployments and is the hook for
+    # adding required reviewers later. It currently has no protection rules, so
+    # a pushed `v*` tag publishes immediately (tags are owner-only via the
+    # `protect release tags` ruleset).
     environment: release
     steps:
       - uses: actions/checkout@v6
